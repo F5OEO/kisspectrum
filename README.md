@@ -1,5 +1,7 @@
 # kisspectrum
-Raspberry Kiss Spectrum :  KisSpectrum 
+Raspberry Kiss Spectrum :  KisSpectrum
+
+Kiss is not related to hardrock (sorry) : https://en.wikipedia.org/wiki/KISS_principle
 
 #Dependencies
 - https://github.com/jgaeddert/liquid-dsp
