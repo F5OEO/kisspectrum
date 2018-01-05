@@ -238,6 +238,7 @@ int main(int argc, char *argv[]) {
     float complex * iqin = (float complex*) malloc(FFTSize * sizeof(float complex));  
     float complex * fftout = (float complex*) malloc(FFTSize * sizeof(float complex));
 
+    float complex *derot_out=(float complex*) malloc(FFTSize * sizeof(float complex));  
     unsigned char *iqin_u8=NULL; 
     if(TypeInput==TYPE_U8) iqin_u8=(unsigned char*) malloc(FFTSize * sizeof(unsigned char)*2);
   
@@ -275,8 +276,8 @@ int main(int argc, char *argv[]) {
 
 
     int          ftype = LIQUID_FIRFILT_RRC; // filter type
-    unsigned int k     = 2;                  // samples/symbol
-    unsigned int m     = 3;                  // filter delay (symbols)
+    unsigned int k     = 4;                  // samples/symbol
+    unsigned int m     = 7;                  // filter delay (symbols)
     float        beta  = 0.35f;               // filter excess bandwidth factor
     int          ms    = LIQUID_MODEM_QPSK;  // modulation scheme (can be unknown)
 	
@@ -408,8 +409,8 @@ int main(int argc, char *argv[]) {
                    int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
                     int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
                     int Point=PointX+ConstellationWidth*PointY;
-                    if(Point<ConstellationWidth*height/2) 
-                    fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);
+                    //if(Point<ConstellationWidth*height/2) 
+                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);
             
 	    }
         for(int i=0;i<FFTSize/2;i++)
@@ -432,8 +433,8 @@ int main(int argc, char *argv[]) {
                     int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
                     int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
                     int Point=PointX+ConstellationWidth*PointY;
-                    if(Point<ConstellationWidth*height/2) 
-                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);
+                    /*if(Point<ConstellationWidth*height/2) 
+                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
                    
 	    }
         Polyline(PowerFFTx, PowerFFTy, FFTSize);
@@ -444,8 +445,19 @@ int main(int argc, char *argv[]) {
         Polyline(Oscillo_imx, Oscillo_imy, FFTSize);
         makeimage(WaterfallPosX,WaterfallPosY,WaterfallWidth,WaterfallHeight,(VGubyte *)fftImage);
         makeimage(ConstellationPosX,ConstellationPosY,ConstellationWidth,height/2,(VGubyte *)fftImageConstellation);
-        //symtrack_cccf_execute_block(symtrack,buf_in,  buf_len,buf_out, &num_written);        
+        int num_written=0;
+        symtrack_cccf_execute_block(symtrack,iqin,  FFTSize,derot_out, &num_written);
+      
+        for(int i=0;i<num_written;i++)
+        {
+             int PointY=(cimagf(derot_out[i])+1.0)/2.0*height/2;
+                    int PointX=(crealf(derot_out[i])+1.0)/2.0*ConstellationWidth;
+                    int Point=PointX+ConstellationWidth*PointY;
+                      //printf("Derot %d\n",  Point);          
 
+                    if((Point>0)&&(Point<ConstellationWidth*height/2)) 
+                        fftImageConstellation[Point]=SetColorFromFloat(1.0);
+        }
         usleep(100);
         End();						   // End the picture
         
