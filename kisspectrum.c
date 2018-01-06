@@ -44,6 +44,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <liquid/liquid.h>
 
+#include "colormaps.py"
+
 #define FFT_SIZE 1024
 
 FILE *input;
@@ -82,10 +84,17 @@ unsigned int setRgb(int r,int g,int b)
     return r|(g<<8)|(b<<16)|(0xFF<<24);
 }
 
-// Color Table Again Stolen from GQRX - Thx to Alex OZ9AEC - 
+
 static void InitColorWaterFall()
 {
 // default waterfall color scheme
+    for (int i = 0; i < 256; i++)
+    {    
+
+        m_ColorTbl[i]=setRgb(_viridis_data[i][0]*255,_viridis_data[i][1]*255,_viridis_data[i][2]*255);
+    }
+    // Color Table Again Stolen from GQRX - Thx to Alex OZ9AEC - 
+    /*
     for (int i = 0; i < 256; i++)
     {
         // level 0: black background
@@ -108,7 +117,7 @@ static void InitColorWaterFall()
             m_ColorTbl[i]=setRgb(255, 255*(i-250)/5, 255*(i-250)/5);
         
     }
-
+    */
 }
 
 unsigned int SetColorFromFloat(float value)
