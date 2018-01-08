@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
 			break;
         case 't': // Input Type
 			if (strcmp("float", optarg) == 0) {TypeInput = TYPE_FLOAT;SampleSize=sizeof(float complex);}
-            if (strcmp("i16", optarg) == 0) {TypeInput = TYPE_I16;SampleSize=2*sizeof(int);}
+            if (strcmp("i16", optarg) == 0) {TypeInput = TYPE_I16;SampleSize=2*sizeof(short);}
              if (strcmp("u8", optarg) == 0) {TypeInput = TYPE_U8;SampleSize=2*sizeof(unsigned char);}
 			break;
         case 's': // SampleRate in Symbol/s
@@ -244,15 +244,15 @@ int main(int argc, char *argv[]) {
 
     int FFTSize = 1024;
 
-    float complex * iqin = (float complex*) malloc(FFTSize * sizeof(float complex));  
+    float complex * iqin = (float complex*) malloc(FFTSize *sizeof(float complex));  
     float complex * fftout = (float complex*) malloc(FFTSize * sizeof(float complex));
 
     float complex *derot_out=(float complex*) malloc(FFTSize * sizeof(float complex));  
     unsigned char *iqin_u8=NULL; 
-    if(TypeInput==TYPE_U8) iqin_u8=(unsigned char*) malloc(FFTSize * sizeof(unsigned char)*2);
+    if(TypeInput==TYPE_U8) iqin_u8=(unsigned char*) malloc(FFTSize * SampleSize);
   
-    int *iqin_i16=NULL;
-    if(TypeInput==TYPE_I16) iqin_i16=(int*) malloc(FFTSize * sizeof(int)*2);  
+    short *iqin_i16=NULL;
+    if(TypeInput==TYPE_I16) iqin_i16=(short*) malloc(FFTSize * SampleSize);  
     
     
     fftplan fft_plan = fft_create_plan(FFTSize, iqin, fftout, LIQUID_FFT_FORWARD, 0);
@@ -317,12 +317,13 @@ int main(int argc, char *argv[]) {
 		1.0, 0.0, 0.0, 0.0, 1.0
 	};
 
-    int SkipSamples=(SampleRate-(FFTSize*fps))/fps;  
+    int SkipSamples=(SampleRate-(FFTSize*fps))/fps;
+    SkipSamples=(SkipSamples/FFTSize)*FFTSize;  
     if(SkipSamples<0) SkipSamples=0;
     printf("Skip Samples = %d\n",SkipSamples);
     int SkipByte=SampleSize*SkipSamples;
     
-    char *Dummy=malloc(SkipByte);
+    char *Dummy=malloc(SkipByte*SampleSize);
 
     int SpectrumPosX=0;//(width-FFTSize)/2;
     int SpectrumPosY=height/2;
@@ -333,23 +334,28 @@ int main(int argc, char *argv[]) {
     int ConstellationPosX=FFTSize;
     int ConstellationPosY=0;
 
+    float FloorDb=160.0;
+    float ScaleFFT=1.0;    
+
     int Splash=0;
     while(keep_running)
     {  
         int Len=0; 
-        fread(Dummy,1,SkipByte,input);
+        while(fread(Dummy,1,SkipByte,input)==0);
         switch(TypeInput)
         {
             case TYPE_FLOAT:
             {
                 
-                Len=fread(iqin,sizeof(float complex),FFTSize,input);      
+                Len=fread(iqin,sizeof(float),FFTSize,input); 
+                if(Len==0) break;     
             }
             break;
             case TYPE_U8:
             {
                 
-                Len=fread(iqin_u8,sizeof(unsigned char),FFTSize*2,input);
+                Len=fread(iqin_u8,sizeof(char),FFTSize*2,input);
+                if(Len==0) break;
                  for(int i=0;i<Len/2;i++)
                  {
                     iqin[i]=(iqin_u8[i*2]-127.5)/127.0+_Complex_I *(iqin_u8[i*2+1]-127.5)/127.0;
@@ -360,7 +366,9 @@ int main(int argc, char *argv[]) {
             case TYPE_I16:
             {
                 
-                Len=fread(iqin_i16,sizeof(int),FFTSize*2,input);
+                Len=fread(iqin_i16,sizeof(short),FFTSize*2,input);
+                //printf("FFTSize=%d SampleSize=%d,Len =%d\n",FFTSize,SampleSize,Len);
+                if(Len==0) break;
                 for(int i=0;i<Len/2;i++)
                 {
                     iqin[i]=iqin_i16[i*2]/32767.0+ _Complex_I *iqin_i16[i*2+1]/32767.0;
@@ -389,6 +397,7 @@ int main(int argc, char *argv[]) {
 		    sprintf(sTitle,"KisSpectrum (F5OEO)");
             Fill(0,128-Splash,128-Splash, 1);
 		    Text(50,height-50, sTitle, SerifTypeface, 20);
+            
             Splash++;
         }
         Stroke(0, 128, 128, 0.8);
@@ -400,14 +409,14 @@ int main(int argc, char *argv[]) {
                     
 			        PowerFFTx[i-FFTSize/2]=i-FFTSize/2+SpectrumPosX;
                     float dbAmp=20.0*log(cabsf(fftout[i])/FFTSize);
-                    unsigned int idbAmp=(unsigned int)((dbAmp+160)*height/2.0/160.0);
+                    unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
 
 			        PowerFFTy[i-FFTSize/2]=idbAmp+SpectrumPosY;
                    //printf("%f %u\n",dbAmp,idbAmp);
                    
                     //FillLinearGradient(PowerFFTx[i-FFTSize/2],height/2,PowerFFTx[i-FFTSize/2],PowerFFTy[i-FFTSize/2],stops,3);	
                     //Rect(PowerFFTx[i-FFTSize/2], height/2, 1, PowerFFTy[i-FFTSize/2]);
-                    unsigned int idbAmpColor=(unsigned int)((dbAmp+180)*256.0/256.0);
+                    unsigned int idbAmpColor=(unsigned int)((dbAmp+200));
                     fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i-WaterfallWidth/2]=SetColorFromInt(idbAmpColor);	
 
                     Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
@@ -427,10 +436,10 @@ int main(int argc, char *argv[]) {
                     
 			        PowerFFTx[i+FFTSize/2]=i+FFTSize/2+SpectrumPosX;
                     float dbAmp=20.0*log(cabsf(fftout[i])/FFTSize);
-                    unsigned int idbAmp=(unsigned int)((dbAmp+160)*height/2.0/160.0);
+                    unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
 
 			        PowerFFTy[i+FFTSize/2]=idbAmp+SpectrumPosY;
-                    unsigned int idbAmpColor=(unsigned int)((dbAmp+180)*256.0/256.0);	
+                    unsigned int idbAmpColor=(unsigned int)((dbAmp+200));	
                     fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i+WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
 
                     Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
@@ -455,7 +464,7 @@ int main(int argc, char *argv[]) {
         makeimage(WaterfallPosX,WaterfallPosY,WaterfallWidth,WaterfallHeight,(VGubyte *)fftImage);
         makeimage(ConstellationPosX,ConstellationPosY,ConstellationWidth,height/2,(VGubyte *)fftImageConstellation);
         int num_written=0;
-        symtrack_cccf_execute_block(symtrack,iqin,  FFTSize,derot_out, &num_written);
+        //symtrack_cccf_execute_block(symtrack,iqin,  FFTSize,derot_out, &num_written);
       
         for(int i=0;i<num_written;i++)
         {
@@ -467,7 +476,7 @@ int main(int argc, char *argv[]) {
                     if((Point>0)&&(Point<ConstellationWidth*height/2)) 
                         fftImageConstellation[Point]=SetColorFromFloat(1.0);
         }
-        usleep(100);
+        //usleep(100);
         End();						   // End the picture
         
     }
