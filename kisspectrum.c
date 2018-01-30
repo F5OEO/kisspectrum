@@ -212,7 +212,8 @@ int main(int argc, char *argv[]) {
 			SampleRate = atoi(optarg);  
 			break;
         case 'r': // Frame/s 
-			fps = atoi(optarg);  
+			fps = atoi(optarg);
+            if(fps>25) fps=25; //Fixme should be teh framerate of screen mode  
 			break;
 		case 'h': // help
 			print_usage();
@@ -285,13 +286,16 @@ int main(int argc, char *argv[]) {
 
 
     int          ftype = LIQUID_FIRFILT_RRC; // filter type
-    unsigned int k     = 4;                  // samples/symbol
-    unsigned int m     = 7;                  // filter delay (symbols)
+    unsigned int k     = 2;                  // samples/symbol
+    unsigned int m     = 3;                  // filter delay (symbols)
     float        beta  = 0.35f;               // filter excess bandwidth factor
     int          ms    = LIQUID_MODEM_QPSK;  // modulation scheme (can be unknown)
 	
     symtrack_cccf symtrack = symtrack_cccf_create(ftype,k,m,beta,ms);
-    
+    //symtrack_cccf_set_bandwidth(symtrack,0.1);
+
+     iirfilt_crcf dc_blocker = iirfilt_crcf_create_dc_blocker(0.001);
+
 	Background(0, 0, 0);				   // Black background
     Fill(255, 255, 255, 1);
 	
@@ -318,9 +322,12 @@ int main(int argc, char *argv[]) {
 	};
 
     int SkipSamples=(SampleRate-(FFTSize*fps))/fps;
-    SkipSamples=(SkipSamples/FFTSize)*FFTSize;  
+    SkipSamples=(SkipSamples/FFTSize)*FFTSize;
+    int TheoricFrameRate=SampleRate/FFTSize;
+    int ShowFrame=TheoricFrameRate/fps+1;
+    printf("TheoricFrameRate %d=%d/%d Showframe =%d\n",TheoricFrameRate,SampleRate,FFTSize,ShowFrame);
     if(SkipSamples<0) SkipSamples=0;
-    printf("Skip Samples = %d\n",SkipSamples);
+    fprintf(stderr,"Skip Samples = %d\n",SkipSamples);
     int SkipByte=SampleSize*SkipSamples;
     
     char *Dummy=malloc(SkipByte*SampleSize);
@@ -338,10 +345,12 @@ int main(int argc, char *argv[]) {
     float ScaleFFT=1.0;    
 
     int Splash=0;
+    int NumFrame=0;
     while(keep_running)
     {  
         int Len=0; 
-        while(fread(Dummy,1,SkipByte,input)==0);
+        NumFrame++;
+        //while(fread(Dummy,1,SkipByte,input)==0);
         switch(TypeInput)
         {
             case TYPE_FLOAT:
@@ -372,12 +381,13 @@ int main(int argc, char *argv[]) {
                 for(int i=0;i<Len/2;i++)
                 {
                     iqin[i]=iqin_i16[i*2]/32767.0+ _Complex_I *iqin_i16[i*2+1]/32767.0;
-                  
+                    iirfilt_crcf_execute(dc_blocker, iqin[i], &iqin[i]);
                 }
             }
             break;
         }
         if(Len<=0) break;
+        if((NumFrame%ShowFrame)!=0) continue;
         fft_execute(fft_plan);
         
         if(WaterfallY>0)        
@@ -402,7 +412,7 @@ int main(int argc, char *argv[]) {
         }
         Stroke(0, 128, 128, 0.8);
 		
-			
+			symtrack_cccf_reset(symtrack);
        
          for(int i=FFTSize/2;i<FFTSize;i++)
 	    {
@@ -424,11 +434,11 @@ int main(int argc, char *argv[]) {
                     
                     Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
                                         
-                   int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
+                  /* int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
                     int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
                     int Point=PointX+ConstellationWidth*PointY;
-                    //if(Point<ConstellationWidth*height/2) 
-                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);
+                    if(Point<ConstellationWidth*height/2) 
+                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
             
 	    }
         for(int i=0;i<FFTSize/2;i++)
@@ -447,37 +457,51 @@ int main(int argc, char *argv[]) {
 
                     Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
 
-
+                    /*
                     int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
                     int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
                     int Point=PointX+ConstellationWidth*PointY;
-                    /*if(Point<ConstellationWidth*height/2) 
+                    if(Point<ConstellationWidth*height/2) 
                         fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
                    
 	    }
-        Polyline(PowerFFTx, PowerFFTy, FFTSize);
+        // QPSK symbol tracking
+         int num_written=0;
+        
+            
+            symtrack_cccf_execute_block(symtrack,iqin,  FFTSize,derot_out, &num_written);
 
-        Stroke(128, 0, 0, 1);
-        Polyline(Oscillo_imx, Oscillo_rey, FFTSize);
-        Stroke(0, 128, 0, 1);
-        Polyline(Oscillo_imx, Oscillo_imy, FFTSize);
-        makeimage(WaterfallPosX,WaterfallPosY,WaterfallWidth,WaterfallHeight,(VGubyte *)fftImage);
-        makeimage(ConstellationPosX,ConstellationPosY,ConstellationWidth,height/2,(VGubyte *)fftImageConstellation);
-        int num_written=0;
-        //symtrack_cccf_execute_block(symtrack,iqin,  FFTSize,derot_out, &num_written);
-      
-        for(int i=0;i<num_written;i++)
+        //if((NumFrame%ShowFrame)==0)
         {
-             int PointY=(cimagf(derot_out[i])+1.0)/2.0*height/2;
-                    int PointX=(crealf(derot_out[i])+1.0)/2.0*ConstellationWidth;
-                    int Point=PointX+ConstellationWidth*PointY;
-                      //printf("Derot %d\n",  Point);          
+            Polyline(PowerFFTx, PowerFFTy, FFTSize);
 
-                    if((Point>0)&&(Point<ConstellationWidth*height/2)) 
-                        fftImageConstellation[Point]=SetColorFromFloat(1.0);
+            Stroke(128, 0, 0, 1);
+            Polyline(Oscillo_imx, Oscillo_rey, FFTSize);
+            Stroke(0, 128, 0, 1);
+            Polyline(Oscillo_imx, Oscillo_imy, FFTSize);
+            makeimage(WaterfallPosX,WaterfallPosY,WaterfallWidth,WaterfallHeight,(VGubyte *)fftImage);
+            
+           
+          
+           
+            for(int i=0;i<num_written;i++)
+                    {
+                         int PointY=(cimagf(derot_out[i])+1.5)/3.0*height/2;
+                                int PointX=(crealf(derot_out[i])+1.5)/3.0*ConstellationWidth;
+                                int Point=PointX+ConstellationWidth*PointY;
+                                  //printf("Derot %d\n",  Point);          
+
+                                if((Point>0)&&(Point<ConstellationWidth*height/2)) 
+                                    fftImageConstellation[Point]=SetColorFromFloat(1.0);
+                                /*else
+                                    fprintf(stderr,"%f+i%f\n",crealf(derot_out[i]),cimagf(derot_out[i]));*/
+                    }    
+        makeimage(ConstellationPosX,ConstellationPosY,ConstellationWidth,height/2,(VGubyte *)fftImageConstellation);
+            //usleep(100);
+            
+                End();
         }
-        //usleep(100);
-        End();						   // End the picture
+       // NumFrame++;						   // End the picture
         
     }
     
