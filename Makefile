@@ -35,7 +35,8 @@ clean:
 library: oglinit.o libshapes.o
 	gcc $(LIBFLAGS) -shared -o libshapes.so oglinit.o libshapes.o 
 
-INCLUDEFLAGS2=-lpthread -I/opt/vc/include  
+#INCLUDEFLAGS2=-O2 -lpthread -I/opt/vc/include 
+INCLUDEFLAGS2=-O3 -lpthread -I/opt/vc/include -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -ffast-math
 LIBFLAGS2=-L/opt/vc/lib -lbrcmEGL -lbrcmGLESv2 -lbcm_host -lpthread  -ljpeg -lrt -lm -lliquid 
 
 kisspectrum: kisspectrum.c 
