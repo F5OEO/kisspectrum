@@ -318,10 +318,10 @@ int main(int argc, char *argv[]) {
 
 
     int          ftype = LIQUID_FIRFILT_RRC; // filter type
-    unsigned int k     = 4;                  // samples/symbol
+    unsigned int k     = 8;                  // samples/symbol
     unsigned int m     = 3;                  // filter delay (symbols)
     float        beta  = 0.35f;               // filter excess bandwidth factor
-    int          ms    = LIQUID_MODEM_QPSK;  // modulation scheme (can be unknown)
+    int          ms    = LIQUID_MODEM_BPSK;  // modulation scheme (can be unknown)
 	
     symtrack_cccf symtrack = symtrack_cccf_create(ftype,k,m,beta,ms);
     //symtrack_cccf_set_bandwidth(symtrack,0.1);
@@ -373,7 +373,7 @@ int main(int argc, char *argv[]) {
     int ConstellationPosX=FFTSize;
     int ConstellationPosY=0;
 
-    float FloorDb=180.0;
+    float FloorDb=220.0;
     float ScaleFFT=1.0;    
 
     int Splash=0;
@@ -422,19 +422,30 @@ int main(int argc, char *argv[]) {
         }
         if(Len<=0) break;
         //if((NumFrame%ShowFrame)!=0) continue;
-        
-
+		#define AVERAGE
+        #ifdef AVERAGE
+		fft_execute(fft_plan);
+		for(int i=0;i<FFTSize;i++)
+            {
+               fftavg[i]+=fftout[i];
+            }
+		#endif
         if((NumFrame%ShowFrame)==0)
         {
+			#ifndef AVERAGE
             fft_execute(fft_plan);
             for(int i=0;i<FFTSize;i++)
             {
                fftavg[i]+=fftout[i];
             }
-
+			#endif
             for(int i=0;i<FFTSize;i++)
               {
-                    fftavg[i]+=fftavg[i];
+					#ifdef AVERAGE
+						fftavg[i]=fftavg[i]/(float)ShowFrame;
+					#else
+                    	fftavg[i]=fftavg[i];
+					#endif
                   //fftavg[i]+=fftavg[i]/(float)ShowFrame;
              }
         
@@ -445,81 +456,81 @@ int main(int argc, char *argv[]) {
        
 		
 			//symtrack_cccf_reset(symtrack);
-        float dbpeak=-200;
+		    float dbpeak=-200;
 
-         for(int i=FFTSize/2;i<FFTSize;i++)
-	    {
-                    
-			        PowerFFTx[i-FFTSize/2]=i-FFTSize/2+SpectrumPosX;
-                    
-                    float dbAmp=20.0*log(cabsf(fftavg[i])/FFTSize);
-                    if(dbAmp>dbpeak) dbpeak=dbAmp;
-                    unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
+		     for(int i=FFTSize/2;i<FFTSize;i++)
+			 {
+		                
+					    PowerFFTx[i-FFTSize/2]=i-FFTSize/2+SpectrumPosX;
+		                
+		                float dbAmp=20.0*log(cabsf(fftavg[i])/FFTSize);
+		                if(dbAmp>dbpeak) dbpeak=dbAmp;
+		                unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
 
-			        PowerFFTy[i-FFTSize/2]=idbAmp+SpectrumPosY;
+					    PowerFFTy[i-FFTSize/2]=idbAmp+SpectrumPosY;
 
-                   
-                
-                   //printf("%f %u\n",dbAmp,idbAmp);
-                   
-                    //FillLinearGradient(PowerFFTx[i-FFTSize/2],height/2,PowerFFTx[i-FFTSize/2],PowerFFTy[i-FFTSize/2],stops,3);	
-                    //Rect(PowerFFTx[i-FFTSize/2], height/2, 1, PowerFFTy[i-FFTSize/2]);
-                   unsigned int idbAmpColor=(unsigned int)((dbAmp+FloorDb)*2*ScaleFFT);//(unsigned int)((dbAmp+200));
-                   // fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i-WaterfallWidth/2]=SetColorFromInt(idbAmpColor);	
-                    fftLine[i-WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
-                    //VGfloat shapecolor[4];
-                    //shapecolor=SetColorFromInt(idbAmpColor);
+		               
+		            
+		               //printf("%f %u\n",dbAmp,idbAmp);
+		               
+		                //FillLinearGradient(PowerFFTx[i-FFTSize/2],height/2,PowerFFTx[i-FFTSize/2],PowerFFTy[i-FFTSize/2],stops,3);	
+		                //Rect(PowerFFTx[i-FFTSize/2], height/2, 1, PowerFFTy[i-FFTSize/2]);
+		               unsigned int idbAmpColor=(unsigned int)((dbAmp+FloorDb)*2*ScaleFFT);//(unsigned int)((dbAmp+200));
+		               // fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i-WaterfallWidth/2]=SetColorFromInt(idbAmpColor);	
+		                fftLine[i-WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
+		                //VGfloat shapecolor[4];
+		                //shapecolor=SetColorFromInt(idbAmpColor);
 
-                    // coordpoint(PowerFFTx[i-FFTSize/2],PowerFFTy[i-FFTSize/2],1,shapecolor);
+		                // coordpoint(PowerFFTx[i-FFTSize/2],PowerFFTy[i-FFTSize/2],1,shapecolor);
 
 
-                  
-                    Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
-                    Oscillo_imy[i]=OscilloPosY+height/4+cimagf(iqin[i])*height/4;
-                    
-                    Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
-                                        
-                  /* int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
-                    int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
-                    int Point=PointX+ConstellationWidth*PointY;
-                    if(Point<ConstellationWidth*height/2) 
-                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
-            
-	    }
-        for(int i=0;i<FFTSize/2;i++)
-	    {
-                    
-			        PowerFFTx[i+FFTSize/2]=i+FFTSize/2+SpectrumPosX;
-                    float dbAmp=20.0*log(cabsf(fftavg[i])/FFTSize);
-                    if(dbAmp>dbpeak) dbpeak=dbAmp;
-                    unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
+		              
+		                Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
+		                Oscillo_imy[i]=OscilloPosY+height/4+cimagf(iqin[i])*height/4;
+		                
+		                Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
+		                                    
+		              /* int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
+		                int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
+		                int Point=PointX+ConstellationWidth*PointY;
+		                if(Point<ConstellationWidth*height/2) 
+		                    fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
+		        
+			}
+		    for(int i=0;i<FFTSize/2;i++)
+			{
+		                
+					    PowerFFTx[i+FFTSize/2]=i+FFTSize/2+SpectrumPosX;
+		                float dbAmp=20.0*log(cabsf(fftavg[i])/FFTSize);
+		                if(dbAmp>dbpeak) dbpeak=dbAmp;
+		                unsigned int idbAmp=(unsigned int)((dbAmp+FloorDb)*height/2.0/FloorDb*ScaleFFT);
 
-			        PowerFFTy[i+FFTSize/2]=idbAmp+SpectrumPosY;
-                     unsigned int idbAmpColor=(unsigned int)((dbAmp+FloorDb)*2*ScaleFFT);//(unsigned int)((dbAmp+200));
-                   // printf("dbAmp %f ->%d\n",dbAmp,idbAmpColor);
-                    //unsigned int idbAmpColor=(unsigned int)((dbAmp)+200);	
-                    //fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i+WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
-                    fftLine[i+WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
+					    PowerFFTy[i+FFTSize/2]=idbAmp+SpectrumPosY;
+		                 unsigned int idbAmpColor=(unsigned int)((dbAmp+FloorDb)*2*ScaleFFT);//(unsigned int)((dbAmp+200));
+		               // printf("dbAmp %f ->%d\n",dbAmp,idbAmpColor);
+		                //unsigned int idbAmpColor=(unsigned int)((dbAmp)+200);	
+		                //fftImage[(WaterfallWidth)*(WaterfallHeight-1)+i+WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
+		                fftLine[i+WaterfallWidth/2]=SetColorFromInt(idbAmpColor);
 
-                    Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
-                    Oscillo_imy[i]=OscilloPosY+height/4+cimagf(iqin[i])*height/4;
+		                Oscillo_imx[i]=OscilloPosX+i*OscilloWidth/FFTSize;
+		                Oscillo_imy[i]=OscilloPosY+height/4+cimagf(iqin[i])*height/4;
 
-                    Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
+		                Oscillo_rey[i]=OscilloPosY+height/4+crealf(iqin[i])*height/4;
 
-                    /*
-                    int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
-                    int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
-                    int Point=PointX+ConstellationWidth*PointY;
-                    if(Point<ConstellationWidth*height/2) 
-                        fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
-                   
-	    }
+		                /*
+		                int PointY=(cimagf(iqin[i])+1.0)/2.0*height/2;
+		                int PointX=(crealf(iqin[i])+1.0)/2.0*ConstellationWidth;
+		                int Point=PointX+ConstellationWidth*PointY;
+		                if(Point<ConstellationWidth*height/2) 
+		                    fftImageConstellation[Point]=SetColorFromFloat((cabsf(iqin[i])+1.0)/4.0);*/
+		               
+			}
             //unsigned int idbAmpColor=(unsigned int)((dbpeak+FloorDb)*2*ScaleFFT);
             //unsigned int ColorAverage=SetColorFromInt(idbAmpColor);
             //Stroke(ColorAverage&0xff,(ColorAverage>>8)&0xFF,(ColorAverage>>16)&0xFF, 1);
            
             
-           }
+       }
           
            
            
@@ -553,16 +564,16 @@ int main(int argc, char *argv[]) {
             }*/
              ClipEnd();
              if(Splash<fps*5)
-        {
-            //Title  
-		    char sTitle[100];
-             Stroke(0, 128, 128, 1);
-		    sprintf(sTitle,"KisSpectrum (F5OEO)");
-            Fill(0,128-Splash,128-Splash, 1);
-		    Text(FFTSize,height-50, sTitle, SerifTypeface, 20);
-            
-            Splash++;
-        }
+		    {
+		        //Title  
+				char sTitle[100];
+		         Stroke(0, 128, 128, 1);
+				sprintf(sTitle,"KisSpectrum (F5OEO)");
+		        Fill(0,128-Splash,128-Splash, 1);
+				Text(FFTSize,height-50, sTitle, SerifTypeface, 20);
+		        
+		        Splash++;
+		    }
             //Scale(0,0);
             //Translate(0,0);
             //Stroke(128, 0, 0, 1);
@@ -592,11 +603,11 @@ int main(int argc, char *argv[]) {
                     }    
         
             makeimage(ConstellationPosX,ConstellationPosY,ConstellationWidth,height/2,(VGubyte *)fftImageConstellation);
-          
+          	 for(int i=0;i<FFTSize;i++) fftavg[i]=0;
                 End();
         }
        // NumFrame++;						   // End the picture
-                for(int i=0;i<FFTSize;i++) fftavg[i]=0;
+               
         
     }
     
