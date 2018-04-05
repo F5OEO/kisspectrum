@@ -4,8 +4,8 @@ Raspberry Kiss Spectrum :  KisSpectrum
 Kiss is not related to hardrock (sorry) : https://en.wikipedia.org/wiki/KISS_principle
 
 #Dependencies
+- apt-get install fftw3-dev libjpeg-dev autoconf ttf-dejavu-core rtl-sdr
 - https://github.com/jgaeddert/liquid-dsp
-- fftw3
 
 #Example of usage using rtl-sdr dongle
 
